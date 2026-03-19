@@ -7,16 +7,16 @@ app = Flask(__name__)
 
 visitas = []
 
-# 🔹 Obtener IP real
+# 🔹 Obtener IP real (funciona con Render/proxy)
 def obtener_ip_real():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     ip = ip.split(',')[0].strip()
     return ip
 
-# 🔹 Obtener información de la IP
+# 🔹 Obtener info de la IP
 def obtener_info_ip(ip):
     try:
-        res = requests.get(f"http://ip-api.com/json/{ip}").json()
+        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
         return {
             "pais": res.get("country", "Desconocido"),
             "ciudad": res.get("city", "Desconocido"),
@@ -33,20 +33,17 @@ def obtener_info_ip(ip):
             "lon": 0
         }
 
+# 🔹 Página principal
 @app.route("/")
 def inicio():
     ip = obtener_ip_real()
 
-    # Detectar tipo de IP
-    if ":" in ip:
-        tipo = "IPv6"
-    else:
-        tipo = "IPv4"
+    # Tipo de IP
+    tipo = "IPv6" if ":" in ip else "IPv4"
 
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info = obtener_info_ip(ip)
 
-    # Crear link a Google Maps
     mapa = f"https://www.google.com/maps?q={info['lat']},{info['lon']}"
 
     visitas.append({
@@ -70,9 +67,11 @@ def inicio():
     <p><a href="{mapa}" target="_blank">🌎 Ver en mapa</a></p>
     """
 
+# 🔹 Panel admin
 @app.route("/admin")
 def admin():
     tabla = ""
+
     for v in visitas:
         tabla += f"""
         <tr>
@@ -102,5 +101,7 @@ def admin():
         </tr>
         {tabla}
     </table>
+    """
 
-app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
