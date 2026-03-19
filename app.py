@@ -15,6 +15,9 @@ def obtener_pais(ip):
 
 @app.route("/")
 def inicio():
+   if request.headers.get('X-Forwarded-For'):
+    ip = request.headers.get('X-Forwarded-For').split(',')[0]
+else:
     ip = request.remote_addr
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     pais = obtener_pais(ip)
