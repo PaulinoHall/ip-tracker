@@ -7,26 +7,30 @@ app = Flask(__name__)
 
 visitas = []
 
-# 🔹 Obtener IP real (compatible con proxies, IPv4 e IPv6)
+# 🔹 Obtener IP real
 def obtener_ip_real():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     ip = ip.split(',')[0].strip()
     return ip
 
-# 🔹 Obtener info de la IP
+# 🔹 Obtener información de la IP
 def obtener_info_ip(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}").json()
         return {
             "pais": res.get("country", "Desconocido"),
             "ciudad": res.get("city", "Desconocido"),
-            "isp": res.get("isp", "Desconocido")
+            "isp": res.get("isp", "Desconocido"),
+            "lat": res.get("lat", 0),
+            "lon": res.get("lon", 0)
         }
     except:
         return {
             "pais": "Desconocido",
             "ciudad": "Desconocido",
-            "isp": "Desconocido"
+            "isp": "Desconocido",
+            "lat": 0,
+            "lon": 0
         }
 
 @app.route("/")
@@ -42,13 +46,19 @@ def inicio():
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info = obtener_info_ip(ip)
 
+    # Crear link a Google Maps
+    mapa = f"https://www.google.com/maps?q={info['lat']},{info['lon']}"
+
     visitas.append({
         "ip": ip,
         "tipo": tipo,
         "fecha": fecha,
         "pais": info["pais"],
         "ciudad": info["ciudad"],
-        "isp": info["isp"]
+        "isp": info["isp"],
+        "lat": info["lat"],
+        "lon": info["lon"],
+        "mapa": mapa
     })
 
     return f"""
@@ -56,6 +66,8 @@ def inicio():
     <p><b>IP:</b> {ip}</p>
     <p><b>Tipo:</b> {tipo}</p>
     <p><b>Ubicación:</b> {info['ciudad']}, {info['pais']}</p>
+    <p><b>Coordenadas:</b> {info['lat']}, {info['lon']}</p>
+    <p><a href="{mapa}" target="_blank">🌎 Ver en mapa</a></p>
     """
 
 @app.route("/admin")
@@ -70,6 +82,8 @@ def admin():
             <td>{v['pais']}</td>
             <td>{v['ciudad']}</td>
             <td>{v['isp']}</td>
+            <td>{v['lat']}, {v['lon']}</td>
+            <td><a href="{v['mapa']}" target="_blank">Ver</a></td>
         </tr>
         """
 
@@ -83,6 +97,8 @@ def admin():
             <th>País</th>
             <th>Ciudad</th>
             <th>ISP</th>
+            <th>Coordenadas</th>
+            <th>Mapa</th>
         </tr>
         {tabla}
     </table>
