@@ -3,7 +3,7 @@ from flask import Flask, request, Response
 from datetime import datetime
 import requests
 import os
-<a href="googlechrome://tu-pagina.com">Abrir en Chrome</a>
+
 app = Flask(__name__)
 
 visitas = []
