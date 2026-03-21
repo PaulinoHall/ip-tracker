@@ -7,11 +7,11 @@ app = Flask(__name__)
 
 visitas = []
 
-# 🔐 Credenciales (usa variables de entorno en producción)
+# 🔐 Credenciales
 USUARIO = os.environ.get("USER", "admin")
 PASSWORD = os.environ.get("PASS", "1234")
 
-# 🔐 Auth básica
+# 🔐 Auth
 def check_auth(username, password):
     return username == USUARIO and password == PASSWORD
 
@@ -30,13 +30,12 @@ def require_auth(f):
     decorated.__name__ = f.__name__
     return decorated
 
-# 🔹 Obtener IP real
+# 🌐 IP real
 def obtener_ip_real():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    ip = ip.split(',')[0].strip()
-    return ip
+    return ip.split(',')[0].strip()
 
-# 🔹 Obtener info de la IP
+# 🌍 Info IP
 def obtener_info_ip(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
@@ -48,21 +47,31 @@ def obtener_info_ip(ip):
             "lon": res.get("lon", 0)
         }
     except:
-        return {
-            "pais": "Desconocido",
-            "ciudad": "Desconocido",
-            "isp": "Desconocido",
-            "lat": 0,
-            "lon": 0
-        }
+        return {"pais":"?","ciudad":"?","isp":"?","lat":0,"lon":0}
 
-# 🔹 Página principal (404 pero guarda datos)
+# 📱 Detectar dispositivo
+def detectar_dispositivo(user_agent):
+    ua = user_agent.lower()
+    if "mobile" in ua:
+        return "📱 Móvil"
+    elif "tablet" in ua:
+        return "📟 Tablet"
+    else:
+        return "💻 PC"
+
+# 🏠 Página principal (404)
 @app.route("/")
 def inicio():
     ip = obtener_ip_real()
     tipo = "IPv6" if ":" in ip else "IPv4"
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info = obtener_info_ip(ip)
+
+    user_agent = request.headers.get('User-Agent', 'N/A')
+    idioma = request.headers.get('Accept-Language', 'N/A')
+    referer = request.headers.get('Referer', 'Directo')
+
+    dispositivo = detectar_dispositivo(user_agent)
 
     mapa = f"https://www.google.com/maps?q={info['lat']},{info['lon']}"
 
@@ -75,15 +84,16 @@ def inicio():
         "isp": info["isp"],
         "lat": info["lat"],
         "lon": info["lon"],
-        "mapa": mapa
+        "mapa": mapa,
+        "user_agent": user_agent,
+        "idioma": idioma,
+        "referer": referer,
+        "dispositivo": dispositivo
     })
 
-    return """
-    <h1>404 Not Found</h1>
-    <p>La página que buscas no existe.</p>
-    """, 404
+    return "<h1>404 Not Found</h1>", 404
 
-# 🔐 Panel protegido
+# 🔐 Panel admin
 @app.route("/admin")
 @require_auth
 def admin():
@@ -99,12 +109,16 @@ def admin():
             <td>{v['ciudad']}</td>
             <td>{v['isp']}</td>
             <td>{v['lat']}, {v['lon']}</td>
-            <td><a href="{v['mapa']}" target="_blank">🌎 Ver</a></td>
+            <td><a href="{v['mapa']}" target="_blank">🌎</a></td>
+            <td>{v['dispositivo']}</td>
+            <td>{v['idioma']}</td>
+            <td>{v['referer']}</td>
+            <td style="max-width:200px;overflow:auto;">{v['user_agent']}</td>
         </tr>
         """
 
     return f"""
-    <h1>Panel Privado 🔐</h1>
+    <h1>Panel Avanzado 🔐</h1>
     <table border="1">
         <tr>
             <th>IP</th>
@@ -113,13 +127,17 @@ def admin():
             <th>País</th>
             <th>Ciudad</th>
             <th>ISP</th>
-            <th>Coordenadas</th>
+            <th>Coords</th>
             <th>Mapa</th>
+            <th>Dispositivo</th>
+            <th>Idioma</th>
+            <th>Referer</th>
+            <th>User-Agent</th>
         </tr>
         {tabla}
     </table>
     """
 
-# 🔥 IMPORTANTE PARA RENDER
+# 🚀 Run
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
